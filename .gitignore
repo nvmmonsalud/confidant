@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.env
+data/ledger.jsonl
+data/ledger.jsonl.*
+.DS_Store
+*.log

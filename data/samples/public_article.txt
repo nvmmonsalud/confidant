@@ -1,0 +1,11 @@
+# AI エージェントの安全性 (public note)
+
+Open agents need out-of-process policy enforcement.
+
+A prompt is not a control. If the guardrail lives in the same process as the
+agent, a compromised or merely creative agent can talk its way past it. The
+enforcement point has to sit outside the thing being enforced — which is what
+NVIDIA OpenShell does with a sandbox, a policy engine and a privacy router.
+
+Confidant applies the same principle to personal documents: the routing
+decision is made before the model is loaded, and recorded afterwards.

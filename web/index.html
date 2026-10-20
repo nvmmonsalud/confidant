@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Confidant — your data, provably yours</title>
+<style>
+  :root{
+    --bg:#0b0d10; --panel:#0f1216; --panel-2:#13171c; --rail:#0e1114;
+    --border:#1d232a; --border-strong:#2a323c;
+    --text:#e7eaee; --muted:#8b949e; --faint:#5c6672;
+    --accent:#4c8dff; --accent-dim:#1e3a63;
+    --ok:#3fb950; --warn:#d29922; --danger:#f85149;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;
+    --sans:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--bg); color:var(--text); font-family:var(--sans);
+    font-size:13.5px; line-height:1.55; letter-spacing:-0.011em;
+    display:grid; grid-template-columns:264px 1fr 348px; grid-template-rows:48px 1fr;
+    height:100vh; overflow:hidden;
+  }
+  /* ---- top bar ---- */
+  header{
+    grid-column:1/-1; display:flex; align-items:center; gap:14px;
+    padding:0 16px; border-bottom:1px solid var(--border); background:var(--rail);
+  }
+  .brand{display:flex;align-items:center;gap:8px;font-weight:600;letter-spacing:-0.02em}
+  .dot{width:7px;height:7px;border-radius:2px;background:var(--accent)}
+  .mode{
+    font-family:var(--mono); font-size:10.5px; text-transform:uppercase;
+    letter-spacing:.06em; color:var(--muted); padding:2px 7px;
+    border:1px solid var(--border-strong); border-radius:4px;
+  }
+  .spacer{flex:1}
+  .integrity{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--muted);font-family:var(--mono)}
+  .integrity b{color:var(--ok);font-weight:500}
+  .integrity.broken b{color:var(--danger)}
+  /* ---- columns ---- */
+  aside, section, .ledger{overflow-y:auto;min-height:0}
+  aside{border-right:1px solid var(--border);background:var(--rail);padding:14px 12px}
+  .ledger{border-left:1px solid var(--border);background:var(--rail);display:flex;flex-direction:column}
+  .col-head{
+    font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);
+    display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;
+  }
+  /* ---- vault ---- */
+  .doc{
+    display:grid;grid-template-columns:14px 1fr;gap:8px;align-items:start;
+    padding:8px 8px;border:1px solid transparent;border-radius:6px;cursor:pointer;
+    transition:background .12s ease,border-color .12s ease;
+  }
+  .doc:hover{background:var(--panel-2);border-color:var(--border)}
+  .doc input{accent-color:var(--accent);margin-top:3px}
+  .doc-title{font-size:12.5px;line-height:1.35;margin-bottom:3px}
+  .meta{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--faint)}
+  .tag{display:inline-flex;align-items:center;gap:4px;padding:1px 5px;border-radius:3px;border:1px solid var(--border-strong)}
+  .tag i{width:5px;height:5px;border-radius:50%;display:inline-block}
+  .s-public i{background:var(--faint)} .s-personal i{background:var(--accent)}
+  .s-sensitive i{background:var(--warn)} .s-restricted i{background:var(--danger)}
+  .s-personal{color:#9dc0ff} .s-sensitive{color:#e3c07a} .s-restricted{color:#ff9b95}
+  .hint{margin-top:12px;padding:9px 10px;border:1px solid var(--border);border-radius:6px;
+        background:var(--panel);font-size:11px;color:var(--muted);line-height:1.5}
+  .hint b{color:var(--text);font-weight:500}
+  /* ---- conversation ---- */
+  section{padding:0;display:flex;flex-direction:column}
+  #thread{flex:1;overflow-y:auto;padding:20px 24px 8px;display:flex;flex-direction:column;gap:14px}
+  .empty{margin:auto;text-align:center;color:var(--faint);max-width:420px}
+  .empty h2{font-size:15px;font-weight:500;color:var(--muted);margin-bottom:8px;letter-spacing:-0.015em}
+  .empty p{font-size:12px;line-height:1.6}
+  .q{display:flex;justify-content:flex-end}
+  .q div{background:var(--panel-2);border:1px solid var(--border);border-radius:10px 10px 3px 10px;
+         padding:8px 12px;max-width:78%;font-size:13px}
+  .a{border:1px solid var(--border);border-radius:3px 10px 10px 10px;background:var(--panel);overflow:hidden}
+  .a-head{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid var(--border);
+          font-family:var(--mono);font-size:10.5px;color:var(--muted);flex-wrap:wrap}
+  .chip{padding:1px 6px;border-radius:3px;border:1px solid var(--border-strong);background:var(--panel-2)}
+  .chip.tier{color:#9dc0ff;border-color:var(--accent-dim)}
+  .chip.local{color:var(--ok);border-color:#1d3a24}
+  .a-body{padding:11px 13px;white-space:pre-wrap;font-size:13px}
+  .a-body.cites{font-variant-numeric:tabular-nums}
+  .refusal{border-color:#4a2222;background:#170f0f}
+  .refusal .a-head{color:#ff9b95;border-bottom-color:#3a1c1c}
+  .refusal .a-body{color:#f0c4c0}
+  .code{font-family:var(--mono);font-size:11px;color:#ff9b95}
+  .redact-strip{padding:6px 13px;border-top:1px solid var(--border);font-family:var(--mono);
+                font-size:10.5px;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap}
+  /* ---- composer ---- */
+  .composer{border-top:1px solid var(--border);background:var(--rail);padding:12px 16px 14px}
+  .presets{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:9px}
+  .preset{
+    font-size:11px;padding:3px 9px;border-radius:20px;border:1px solid var(--border-strong);
+    background:transparent;color:var(--muted);cursor:pointer;font-family:inherit;
+    transition:color .12s,border-color .12s;
+  }
+  .preset:hover{color:var(--text);border-color:var(--faint)}
+  .preset.risky:hover{color:#ff9b95;border-color:#4a2222}
+  .inputrow{display:flex;gap:8px;align-items:center}
+  input[type=text]{
+    flex:1;background:var(--panel);border:1px solid var(--border-strong);border-radius:7px;
+    padding:9px 12px;color:var(--text);font-family:inherit;font-size:13px;outline:none;
+  }
+  input[type=text]:focus{border-color:var(--accent-dim);box-shadow:0 0 0 3px rgba(76,141,255,.08)}
+  button.send{
+    background:var(--accent);color:#06121f;border:none;border-radius:7px;padding:9px 16px;
+    font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;letter-spacing:-0.01em;
+  }
+  button.send:disabled{opacity:.45;cursor:default}
+  .consent{display:flex;align-items:center;gap:8px;margin-top:9px;font-size:11.5px;color:var(--muted)}
+  .consent input{accent-color:var(--warn)}
+  .consent.armed{color:#e3c07a}
+  /* ---- ledger ---- */
+  .stats{padding:12px 14px;border-bottom:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .stat .k{font-size:9.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--faint)}
+  .stat .v{font-family:var(--mono);font-size:15px;color:var(--text);margin-top:1px}
+  .stat .v small{font-size:10px;color:var(--muted)}
+  .stream{flex:1;overflow-y:auto;padding:8px 10px}
+  .row{padding:7px 8px;border-radius:5px;border:1px solid transparent;font-family:var(--mono);font-size:10.5px;
+       color:var(--muted);display:grid;grid-template-columns:auto 1fr auto;gap:6px;align-items:center}
+  .row:hover{background:var(--panel);border-color:var(--border)}
+  .row.new{animation:flash .9s ease}
+  @keyframes flash{0%{background:rgba(76,141,255,.14)}100%{background:transparent}}
+  .row .seq{color:var(--faint)}
+  .row .kind{color:var(--text)}
+  .row .kind.cloud{color:#9dc0ff} .row .kind.device{color:var(--ok)} .row .kind.refusal{color:#ff9b95}
+  .row .cost{color:var(--faint)}
+  .verify{margin:0;padding:9px 12px;border-top:1px solid var(--border);font-family:var(--mono);
+          font-size:10px;color:var(--faint);display:flex;justify-content:space-between;gap:8px}
+  .verify b{color:var(--ok);font-weight:500}
+  .verify.broken b{color:var(--danger)}
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-thumb{background:#20262e;border-radius:5px;border:2px solid var(--bg)}
+  ::-webkit-scrollbar-track{background:transparent}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><span class="dot"></span>Confidant</div>
+  <span class="mode" id="mode">mock</span>
+  <span class="spacer"></span>
+  <div class="integrity" id="integrity"><span>ledger</span><b>verified</b><span id="rec-count">·</span></div>
+</header>
+
+<aside>
+  <div class="col-head"><span>Vault</span><span id="doc-count">0</span></div>
+  <div id="docs"></div>
+  <div class="hint">
+    <b>Nothing here has left this machine.</b><br>
+    Classification ran on-device before any model was loaded.
+  </div>
+</aside>
+
+<section>
+  <div id="thread">
+    <div class="empty" id="empty">
+      <h2>Ask across your own documents.</h2>
+      <p>Every request is classified, routed and recorded. Restricted content stays on this
+         machine unless you explicitly consent to a de-identified escalation.</p>
+    </div>
+  </div>
+  <div class="composer">
+    <div class="presets" id="presets"></div>
+    <div class="inputrow">
+      <input type="text" id="q" placeholder="Ask about your documents…" autocomplete="off" />
+      <button class="send" id="send">Ask</button>
+    </div>
+    <label class="consent" id="consent-row">
+      <input type="checkbox" id="consent" />
+      <span>Allow de-identified escalation to Token Factory (strips identifiers first)</span>
+    </label>
+  </div>
+</section>
+
+<div class="ledger">
+  <div class="stats" id="stats"></div>
+  <div class="col-head" style="padding:10px 14px 0"><span>Decision ledger</span><span>hash-chained</span></div>
+  <div class="stream" id="stream"></div>
+  <div class="verify" id="verify"><span>chain</span><b>ok</b></div>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const state = { docs: [], selected: new Set(), busy: false };
+
+const PRESETS = [
+  { label: "Visa risk?", q: "Does anything across my documents put my visa renewal at risk?" },
+  { label: "Clinic summary", q: "Summarise what my clinic note says." },
+  { label: "Visa fee (web)", q: "What is the current fee for extending a 技術・人文知識・国際業務 visa?" },
+  { label: "Identifiers to web", q: "What is the current rule for residence card AB12345678CD?", risky: true },
+];
+
+const SENS = ["public", "personal", "sensitive", "restricted"];
+
+async function jget(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(url + " -> " + r.status);
+  return r.json();
+}
+
+function chip(label, cls) {
+  const el = document.createElement("span");
+  el.className = "chip " + (cls || "");
+  el.textContent = label;
+  return el;
+}
+
+async function loadDocs() {
+  const data = await jget("/api/docs");
+  state.docs = data.docs;
+  document.documentElement.dataset.count = data.docs.length;
+  const wrap = $("#docs");
+  wrap.innerHTML = "";
+  data.docs.forEach((d) => {
+    const row = document.createElement("label");
+    row.className = "doc";
+    row.innerHTML =
+      '<input type="checkbox" ' + (state.selected.has(d.id) ? "checked" : "") + ' />' +
+      '<div><div class="doc-title">' + d.title + '</div>' +
+      '<div class="meta">' +
+        '<span class="tag s-' + d.sensitivity + '"><i></i>' + d.sensitivity + '</span>' +
+        '<span>' + d.tokens + ' tok</span>' +
+      '</div></div>';
+    row.querySelector("input").addEventListener("change", (e) => {
+      if (e.target.checked) state.selected.add(d.id); else state.selected.delete(d.id);
+    });
+    wrap.appendChild(row);
+  });
+  $("#doc-count").textContent = data.docs.length + " docs";
+}
+
+async function loadLedger() {
+  const data = await jget("/api/ledger?limit=40");
+  const s = data.stats;
+  $("#stats").innerHTML =
+    stat("stayed home", s.local_share_pct + "%", "of tokens") +
+    stat("spent", "$" + Number(s.cost_usd).toFixed(4), s.calls + " calls") +
+    stat("refused", String(s.refusals), "at the edge") +
+    stat("redacted", String(s.redacted_requests), "requests");
+  const stream = $("#stream");
+  stream.innerHTML = "";
+  data.records.forEach((r) => stream.appendChild(row(r)));
+  const v = data.integrity;
+  const el = $("#verify");
+  el.className = "verify" + (v.ok ? "" : " broken");
+  el.innerHTML = "<span>chain " + (v.ok ? "verified" : "BROKEN@" + v.broken_at_seq) +
+                 "</span><b>" + (v.ok ? "ok" : "tampered") + "</b>";
+  const integ = $("#integrity");
+  integ.className = "integrity" + (v.ok ? "" : " broken");
+  integ.querySelector("b").textContent = v.ok ? "verified" : "BROKEN";
+  $("#rec-count").textContent = "· " + v.checked + " records";
+}
+
+function stat(k, v, sub) {
+  return '<div class="stat"><div class="k">' + k + '</div><div class="v">' + v +
+         ' <small>' + sub + '</small></div></div>';
+}
+
+function row(r) {
+  const el = document.createElement("div");
+  el.className = "row";
+  let kind = r.kind;
+  let cls = "device";
+  if (r.kind === "refusal" || r.permitted === false) { kind = "refused"; cls = "refusal"; }
+  else if (r.egress === "cloud") cls = "cloud";
+  el.innerHTML =
+    '<span class="seq">' + String(r.seq).padStart(3, "0") + '</span>' +
+    '<span><span class="kind ' + cls + '">' + kind + '</span> ' +
+      (r.tier || "—") + (r.reason_code ? ' <span style="color:#5c6672">' + r.reason_code + '</span>' : "") +
+    '</span>' +
+    '<span class="cost">' + (r.cost_usd ? "$" + Number(r.cost_usd).toFixed(5) : "") + '</span>';
+  el.title = (r.reason || "") + "\nhash " + (r.hash || "").slice(0, 16) + "…";
+  return el;
+}
+
+function addQuestion(text) {
+  const empty = $("#empty");
+  if (empty) empty.remove();
+  const el = document.createElement("div");
+  el.className = "q";
+  el.innerHTML = "<div></div>";
+  el.firstChild.textContent = text;
+  $("#thread").appendChild(el);
+  $("#thread").scrollTop = 1e9;
+}
+
+function addAnswer(r) {
+  const el = document.createElement("div");
+  el.className = "a" + (r.refused ? " refusal" : "");
+  const head = document.createElement("div");
+  head.className = "a-head";
+  if (r.refused) {
+    head.appendChild(chip("REFUSED", ""));
+    head.appendChild(chip(r.decision.reason_code, ""));
+  } else {
+    head.appendChild(chip(r.tier_label, r.decision.tier === "local" ? "tier local" : "tier"));
+    head.appendChild(chip(r.decision.sensitivity, ""));
+    if (r.decision.redaction_required) head.appendChild(chip("de-identified", ""));
+    if (r.model) head.appendChild(chip(r.model, ""));
+    head.appendChild(chip(r.usage.tokens_in + "/" + r.usage.tokens_out + " tok", ""));
+    head.appendChild(chip("$" + Number(r.usage.cost_usd).toFixed(5), ""));
+  }
+  const body = document.createElement("div");
+  body.className = "a-body";
+  body.textContent = r.answer || "";
+  el.appendChild(head);
+  el.appendChild(body);
+  if (r.web && r.web.query_sent) {
+    const strip = document.createElement("div");
+    strip.className = "redact-strip";
+    strip.textContent = "tavily query sent: " + r.web.query_sent.slice(0, 120);
+    el.appendChild(strip);
+  }
+  if (r.usage && r.usage.latency_ms) {
+    const strip = document.createElement("div");
+    strip.className = "redact-strip";
+    strip.innerHTML = "<span>ledger " + (r.ledger_seqs || []).map(s => "#" + s).join(" ") +
+                      "</span><span>" + r.usage.latency_ms + " ms</span>" +
+                      "<span>stage: " + (r.stage || "model") + "</span>";
+    el.appendChild(strip);
+  }
+  $("#thread").appendChild(el);
+  $("#thread").scrollTop = 1e9;
+}
+
+async function ask(text) {
+  if (state.busy) return;
+  state.busy = true;
+  $("#send").disabled = true;
+  addQuestion(text);
+  try {
+    const body = {
+      question: text,
+      doc_ids: state.selected.size ? Array.from(state.selected) : null,
+      allow_web: true,
+    };
+    const r = await fetch("/api/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(Object.assign(body, { consent: $("#consent").checked })),
+    });
+    const data = await r.json();
+    addAnswer(data);
+    await loadLedger();
+  } catch (err) {
+    addAnswer({ refused: true, decision: { reason_code: "client_error" }, answer: String(err) });
+  } finally {
+    state.busy = false;
+    $("#send").disabled = false;
+    $("#q").focus();
+  }
+}
+
+(function init() {
+  const p = $("#presets");
+  PRESETS.forEach((preset) => {
+    const b = document.createElement("button");
+    b.className = "preset" + (preset.risky ? " risky" : "");
+    b.textContent = preset.label;
+    b.onclick = () => { $("#q").value = preset.q; ask(preset.q); };
+    p.appendChild(b);
+  });
+  $("#consent").addEventListener("change", (e) => {
+    $("#consent-row").classList.toggle("armed", e.target.checked);
+  });
+  $("#send").onclick = () => {
+    const v = $("#q").value.trim();
+    if (v) { $("#q").value = ""; ask(v); }
+  };
+  $("#q").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#send").click(); });
+
+  jget("/api/health").then((h) => { $("#mode").textContent = h.mode; });
+  loadDocs().then(loadLedger).catch((e) => console.error(e));
+})();
+</script>
+</body>
+</html>
