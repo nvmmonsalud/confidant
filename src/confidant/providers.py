@@ -188,6 +188,11 @@ class OllamaProvider(Provider):
                 {"role": "user", "content": user},
             ],
             "stream": False,
+            # Reasoning models (Nemotron 3.5 has this on by default) put the
+            # whole budget into `thinking` and return EMPTY content when the
+            # cap is reached, with done_reason="length". Off for short factual
+            # answers; the ledger records the setting that produced it.
+            "think": self.cfg.local_think,
             "options": {"num_predict": max_tokens, "temperature": 0.2},
         }
         async with httpx.AsyncClient(timeout=self.cfg.request_timeout_s) as client:
@@ -196,13 +201,18 @@ class OllamaProvider(Provider):
             data = resp.json()
 
         msg = data.get("message") or {}
+        text = msg.get("content") or ""
+        # Fall back to the reasoning trace rather than returning nothing.
+        if not text.strip():
+            text = msg.get("thinking") or ""
         return Completion(
-            text=msg.get("content") or "",
+            text=text,
             tokens_in=int(data.get("prompt_eval_count") or est_tokens(system + user)),
             tokens_out=int(data.get("eval_count") or 0),
             model=self.model,
             provider=self.name,
             latency_ms=int((time.perf_counter() - started) * 1000),
+            finish_reason=data.get("done_reason") or "stop",
         )
 
     async def health(self) -> dict[str, Any]:
@@ -252,23 +262,47 @@ class TavilyClient:
 # ---------------------------------------------------------------------------
 # Factory
 # ---------------------------------------------------------------------------
+class StandInProvider(MockProvider):
+    """The device tier on a host that has no device.
+
+    A deployed server has no laptop to be private on, so the local tier cannot
+    be real there. Rather than quietly serving it from the cloud — which would
+    invert the entire claim — it answers deterministically and says so in the
+    model name the ledger records: `…:stand-in`. The video shows the real one.
+    """
+
+    name = "stand-in"
+
+    def __init__(self, tier: str, model: str = "mock") -> None:
+        super().__init__(tier=tier, model=model)
+
+    async def complete(self, system: str, user: str, *, max_tokens: int = 4096) -> Completion:
+        done = await super().complete(system, user, max_tokens=max_tokens)
+        done.model = f"{self.model}:stand-in"
+        return done
+
+
 def build_provider(tier: str, cfg: Settings | None = None) -> Provider:
     cfg = cfg or default_settings
-    if not cfg.live:
-        model = {
-            "local": cfg.model_local,
-            "light": cfg.model_light,
-            "deep": cfg.model_deep,
-        }[tier]
+    model = {
+        "local": cfg.model_local,
+        "light": cfg.model_light,
+        "deep": cfg.model_deep,
+    }[tier]
+
+    if cfg.mode == "mock":
         return MockProvider(tier=tier, model=model)
 
+    if cfg.mode == "hybrid":
+        # Cloud is real; the device tier is honest about being a stand-in.
+        if tier == "local":
+            return StandInProvider(tier=tier, model=model)
+        return TokenFactoryProvider(cfg, tier, model)
+
+    # live
     if tier == "local":
-        return OllamaProvider(cfg, tier, cfg.model_local_vision)
-    if tier == "light":
-        return TokenFactoryProvider(cfg, tier, cfg.model_light)
-    if tier == "deep":
-        return TokenFactoryProvider(cfg, tier, cfg.model_deep)
-    raise ValueError(f"unknown tier {tier!r}")
+        return OllamaProvider(cfg, tier, cfg.model_local)
+    return TokenFactoryProvider(cfg, tier, model)
 
 
 async def probe_token_factory(cfg: Settings | None = None) -> dict[str, Any]:

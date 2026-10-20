@@ -1,5 +1,5 @@
+# Runtime deps only — this exact file is installed by Vercel's Python build,
+# so keep it light. Local dev and tests add requirements-dev.txt.
 fastapi>=0.115
-uvicorn[standard]>=0.30
-httpx>=0.27
 pydantic>=2.6
-pytest>=8.0
+httpx>=0.27

@@ -55,9 +55,14 @@ The residual check re-scans the scrubbed text for identifier shapes and reports 
 
 | Tier | Model | Egress | Vision | Cost /1M in·out | Chosen when |
 |---|---|---|---|---|---|
-| `local` | Nemotron 3.5 Bolt 74B-A9B | device | yes | $0 | default; always permitted |
+| `local` | Nemotron 3.5 Lightning 30B-A3B (Ollama, MLX) | device | no* | $0 | default; always permitted |
 | `tf_light` | Nemotron 3.5 Lightning 30B-A3B | cloud | no | $0.06 · $0.24 | routine permitted work |
 | `tf_deep` | Nemotron 3 Ultra 550B-A55B | cloud | no | $1.00 · $3.00 | long-context recall required |
+
+\* The vision tier is **Nemotron 3.5 Bolt 74B-A9B** — pulled separately and set via
+`CONFIDANT_MODEL_LOCAL_VISION`. With Bolt present, `vision_pinned_local` becomes a real path
+rather than a policy branch; without it, image documents are refused rather than sent to a
+cloud VLM.
 
 The router is **local-first**: among permitted tiers it picks the cheapest, so `tf_light` is only
 reached when local is excluded or incapable. `tf_deep` is reached only for long-context work, where

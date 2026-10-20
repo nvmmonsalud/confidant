@@ -12,7 +12,7 @@ if [ ! -d .venv ]; then
   "$PY" -m venv .venv
 fi
 ./.venv/bin/python -m pip install -q --upgrade pip
-./.venv/bin/python -m pip install -q -r requirements.txt
+./.venv/bin/python -m pip install -q -r requirements-dev.txt
 
 # Fail loudly here rather than mysteriously at request time.
 ./.venv/bin/python - <<'PYCHECK'

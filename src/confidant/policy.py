@@ -62,7 +62,7 @@ class TierSpec:
 TIERS: dict[Tier, TierSpec] = {
     Tier.LOCAL: TierSpec(
         Tier.LOCAL,
-        "Local — Bolt 74B-A9B",
+        "Local — on this device",
         Egress.DEVICE,
         vision=True,
         price_key="local",

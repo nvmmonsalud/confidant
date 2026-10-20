@@ -4,22 +4,73 @@ is on this API.
 
 from __future__ import annotations
 
+import time
+from collections import defaultdict
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from . import policy
-from .config import DATA_DIR, LEDGER_PATH, REPO_ROOT, settings
+from .config import DATA_DIR, LEDGER_PATH, REPO_ROOT, WEB_DIR, settings
 from .ledger import Ledger
 from .providers import probe_token_factory
 from .router import Confidant, Vault
 
-WEB_DIR = REPO_ROOT / "web"
+
+class DemoGuard:
+    """Keeps a public URL from draining a credit pool.
+
+    The site is unauthenticated, so anyone with the link can press the button
+    that costs money. A per-IP cooldown plus a global daily ceiling means the
+    worst case is a few dollars, and the ceiling is visible in the UI rather
+    than discovered on the invoice.
+    """
+
+    def __init__(self, config) -> None:
+        self.cfg = config
+        self._last_seen: dict[str, float] = defaultdict(float)
+        self._day = ""
+        self._count = 0
+
+    def _roll(self) -> None:
+        today = time.strftime("%Y-%m-%d", time.gmtime())
+        if today != self._day:
+            self._day = today
+            self._count = 0
+
+    def check(self, ip: str) -> dict[str, Any] | None:
+        self._roll()
+        if self._count >= self.cfg.daily_call_cap:
+            return {
+                "limited": True,
+                "reason": (
+                    f"Daily demo cap reached ({self.cfg.daily_call_cap} live calls). "
+                    "This ceiling exists so a public URL cannot drain the credit pool; "
+                    "run the project locally for unlimited calls."
+                ),
+            }
+        wait = self.cfg.per_ip_cooldown_s - (time.monotonic() - self._last_seen[ip])
+        if wait > 0:
+            return {
+                "limited": True,
+                "reason": f"One live call every {self.cfg.per_ip_cooldown_s:.0f}s. "
+                f"Try again in {wait:.1f}s.",
+            }
+        return None
+
+    def record(self, ip: str) -> None:
+        self._roll()
+        self._last_seen[ip] = time.monotonic()
+        self._count += 1
+
+    @property
+    def used(self) -> int:
+        self._roll()
+        return self._count
 
 
 @asynccontextmanager
@@ -34,6 +85,7 @@ app = FastAPI(title="Confidant", version="0.1.0", docs_url="/api/docs", lifespan
 ledger = Ledger(LEDGER_PATH)
 vault = Vault(DATA_DIR / "samples", ledger)
 confidant = Confidant(cfg=settings, ledger=ledger, vault=vault)
+guard = DemoGuard(settings)
 
 
 class AskRequest(BaseModel):
@@ -87,11 +139,43 @@ async def get_ledger(limit: int = 60) -> dict[str, Any]:
 
 
 @app.post("/api/ask")
-async def ask(req: AskRequest) -> JSONResponse:
+async def ask(req: AskRequest, request: Request) -> JSONResponse:
+    ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip() or (
+        request.client.host if request.client else "unknown"
+    )
+    blocked = guard.check(ip)
+    if blocked:
+        return JSONResponse(
+            {
+                "task_id": "throttled",
+                "question": req.question,
+                "refused": True,
+                "stage": "guard",
+                "answer": blocked["reason"],
+                "decision": {
+                    "permitted": False,
+                    "tier": None,
+                    "reason_code": "demo_quota",
+                    "reason": blocked["reason"],
+                    "sensitivity": "public",
+                    "redaction_required": False,
+                    "allowed_tiers": [],
+                },
+                "tier_label": "—",
+                "model": None,
+                "web": None,
+                "usage": {"tokens_in": 0, "tokens_out": 0, "cost_usd": 0.0, "latency_ms": 0},
+                "ledger_seqs": [],
+            },
+            status_code=429,
+        )
+    guard.record(ip)
     result = await confidant.ask(
         req.question, req.doc_ids, allow_web=req.allow_web, consent=req.consent
     )
     result["stats"] = confidant.stats()
+    result["demo_calls_used"] = guard.used
+    result["demo_call_cap"] = settings.daily_call_cap
     return JSONResponse(result)
 
 

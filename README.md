@@ -124,8 +124,8 @@ survive a follow-up question.
 
 | Model | Role | Why this one |
 |---|---|---|
-| **Nemotron 3.5 Bolt 74B-A9B** | Local tier — vision ingestion + private Q&A | 9B active out of 74B, fits a 24 GB / 32 GB recipe, and it is a **vision-language** model. That is the load-bearing detail: before this, reading a scanned document required a cloud VLM, so the leak happened at *ingestion*, before any routing existed to prevent it. Bolt closes that hole. |
-| **Nemotron 3.5 Lightning 30B-A3B** | Execution layer on Token Factory | 3B active, $0.06/$0.24 per 1M, built for the execution half of an always-on agent. NVIDIA ships it explicitly for harnesses like Hermes and OpenClaw. |
+| **Nemotron 3.5 Lightning 30B-A3B** | Local tier (Ollama/MLX) + execution layer on Token Factory | The device tier today: 3B active, runs on this laptop, $0, and it reads Japanese paperwork correctly (measured 8s for a clinic-note summary). The same model on Token Factory handles routine cloud work at $0.06/$0.24 per 1M. |
+| **Nemotron 3.5 Bolt 74B-A9B** | Vision upgrade for the local tier | 9B active out of 74B, fits a 24 GB / 32 GB recipe, and it is a **vision-language** model. That is the load-bearing detail for scanned documents: before this, reading a scan required a cloud VLM, so the leak happened at *ingestion*, before any routing existed to prevent it. Set `CONFIDANT_MODEL_LOCAL_VISION` once pulled. |
 | **Nemotron 3 Ultra 550B-A55B** | Escalation on Token Factory | The only tier that wins on long-context recall and numeric precision — which is exactly what cross-document contradiction hunting is. 16× the price of Lightning, so it is entered deliberately, never by default. |
 
 **A note on what we deliberately did *not* use: Nemotron 3 Super (120B, March 2026).** At the
@@ -208,9 +208,32 @@ Before trusting any model id:
 PYTHONPATH=src ./.venv/bin/python scripts/probe_models.py
 ```
 
+### Three modes
+
+| Mode | Device tier | Cloud tiers | Used for |
+|---|---|---|---|
+| `mock` | canned | canned | tests, offline demo, zero credentials |
+| `hybrid` | **labelled stand-in** (`…:stand-in` in the ledger) | **real** Token Factory | the deployed demo — a server has no laptop to be private on, so it says so instead of pretending |
+| `live` | real Ollama on your machine | real Token Factory | recording the video, real use |
+
+The `hybrid` stand-in is deliberate: serving the device tier from the cloud on the public demo
+would invert the entire claim. The ledger records `:stand-in` so nobody has to take it on trust.
+
+### Deployed demo
+
+Hosted on Vercel as a single Python function (`api/index.py` + `vercel.json`), with the ledger
+redirected to `/tmp` because the rest of the filesystem is read-only. Guardrails keep a public,
+unauthenticated URL from spending real money:
+
+- `CONFIDANT_PER_IP_COOLDOWN` — seconds between live calls per IP (default 5)
+- `CONFIDANT_DAILY_CAP` — hard ceiling on live calls per UTC day (default 300)
+
+Both surface in the UI as a visible counter. At Ultra's published rate, a fully exhausted day is
+well under a dollar.
+
 Config: `CONFIDANT_MODEL_LIGHT`, `CONFIDANT_MODEL_DEEP`, `CONFIDANT_MODEL_LOCAL`,
-`NEBIUS_BASE_URL`, `OLLAMA_BASE_URL`, `CONFIDANT_MODE`, `CONFIDANT_TIMEOUT`. All documented in
-`.env.example`.
+`CONFIDANT_OLLAMA_BASE_URL`, `CONFIDANT_NEBIUS_BASE_URL`, `CONFIDANT_MODE`,
+`CONFIDANT_LOCAL_THINK`, `CONFIDANT_TIMEOUT`. All documented in `.env.example`.
 
 ### Tests
 

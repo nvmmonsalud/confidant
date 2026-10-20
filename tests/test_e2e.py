@@ -47,6 +47,10 @@ def server(tmp_path_factory):
         "CONFIDANT_MODE": "mock",
         "CONFIDANT_DATA": str(tmp),
         "CONFIDANT_LEDGER": str(tmp / "ledger.jsonl"),
+        # The demo guard throttles per IP; the test suite fires from one IP by
+        # design, so it must be off here and asserted separately.
+        "CONFIDANT_PER_IP_COOLDOWN": "0",
+        "CONFIDANT_DAILY_CAP": "10000",
     }
     proc = subprocess.Popen(
         [PY, "-m", "uvicorn", "confidant.api:app", "--host", "127.0.0.1", "--port", str(port)],

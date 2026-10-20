@@ -1,0 +1,5 @@
+-r requirements.txt
+
+# Local dev + tests
+uvicorn[standard]>=0.30
+pytest>=8.0

@@ -39,7 +39,7 @@ Click preset **"Visa risk?"**
 Expected: `tier: local` · `cost: $0.000000` · answer ends "Recommend: escalate."
 
 > "Cross-document question. Policy says: these documents are restricted, so the local model —
-> Nemotron 3.5 Bolt, running on this laptop — handles it. Cost, zero.
+> Nemotron 3.5 Lightning, running on this laptop through Ollama — handles it. Cost, zero.
 >
 > And notice what it does: it *declines* to answer. It can read four documents, but it will not
 > certify a cross-document comparison it can't do reliably. That honesty is the feature — the
