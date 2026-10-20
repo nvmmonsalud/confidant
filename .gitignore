@@ -7,3 +7,5 @@ data/ledger.jsonl
 data/ledger.jsonl.*
 .DS_Store
 *.log
+.vercel
+.env*

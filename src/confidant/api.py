@@ -10,8 +10,8 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, JSONResponse
+
 from pydantic import BaseModel, Field
 
 from . import policy
@@ -195,5 +195,16 @@ async def probe() -> dict[str, Any]:
     return await probe_token_factory(settings)
 
 
-if WEB_DIR.exists():
-    app.mount("/", StaticFiles(directory=str(WEB_DIR), html=True), name="web")
+@app.get("/", include_in_schema=False)
+@app.get("/api/index", include_in_schema=False)
+async def index():
+    """Serve the UI.
+
+    Two paths, for two good reasons. Locally it is `/`. On Vercel the rewrite
+    that fronts the function delivers `/api/index` as the path (Vercel hands
+    over the destination, not the original), so the UI has to answer there too.
+    """
+    page = WEB_DIR / "index.html"
+    if page.exists():
+        return FileResponse(page, media_type="text/html")
+    return JSONResponse({"detail": f"UI not bundled (looked in {WEB_DIR})"}, status_code=500)
